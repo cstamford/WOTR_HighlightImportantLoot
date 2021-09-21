@@ -1,0 +1,12 @@
+{
+	"Id": "HighlightImportantLoot",
+	"DisplayName": "Highlight Important Loot",
+	"Author": "Xenofell",
+	"Version": "1.0.0",
+	"ManagerVersion": "0.23.3",
+	"Requirements": [],
+	"AssemblyName": "HighlightImportantLoot.dll",
+	"EntryMethod": "HighlightImportantLoot.HighlightImportantLoot.Load",
+	"Repository": "https://raw.githubusercontent.com/cstamford/WOTR_HighlightImportantLoot/main/InventorySearchBar/Repository.json",
+	"HomePage": "https://www.nexusmods.com/pathfinderwrathoftherighteous/mods/126"
+}
