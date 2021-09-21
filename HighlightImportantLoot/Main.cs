@@ -20,7 +20,7 @@ namespace HighlightImportantLoot
     public class LootController : MonoBehaviour
     {
         private Sprite m_highlight_sprite;
-        private ItemSlotsGroupView m_items_view;
+        private ItemSlotsGroupView[] m_items_view;
 
         private void Awake()
         {
@@ -47,63 +47,72 @@ namespace HighlightImportantLoot
         {
             if (m_items_view == null)
             {
-                m_items_view = GetComponentInChildren(typeof(ItemSlotsGroupView)) as ItemSlotsGroupView;
-                m_items_view.ViewModel.CollectionChangedCommand.Subscribe(delegate (bool _) { ApplyHighlights(); });
+                m_items_view = GetComponentsInChildren<ItemSlotsGroupView>();
+
+                foreach (ItemSlotsGroupView view in m_items_view)
+                {
+                    view.ViewModel.CollectionChangedCommand.Subscribe(delegate (bool _) { ApplyHighlights(); });
+                }
+
                 ApplyHighlights();
             }
         }
 
         private void ApplyHighlights()
         {
-            foreach (IWidgetView widget in m_items_view.m_WidgetList.m_VisibleEntries)
+            foreach (ItemSlotsGroupView view in m_items_view)
             {
-                ItemSlotView<ItemSlotVM> slot = widget as ItemSlotView<ItemSlotVM>;
-
-                if (slot == null) continue;
-
-                Transform highlight = slot.m_NotableLayer.transform.parent.Find("CustomHighlight");
-
-                if (highlight == null)
+                foreach (IWidgetView widget in view.m_WidgetList.m_VisibleEntries)
                 {
-                    highlight = Instantiate(slot.m_NotableLayer.gameObject, slot.m_NotableLayer.transform.parent).transform;
-                    highlight.name = "CustomHighlight";
-                    highlight.SetSiblingIndex(1);
-                    highlight.GetComponent<Image>().sprite = null;
+                    ItemSlotView<ItemSlotVM> slot = widget as ItemSlotView<ItemSlotVM>;
 
-                    DestroyImmediate(highlight.transform.Find("NotableLayerFX").gameObject);
+                    if (slot == null) continue;
 
-                    GameObject new_highlight_border = Instantiate(highlight.gameObject, highlight);
-                    new_highlight_border.name = "CustomHighlightBorder";
-                    new_highlight_border.GetComponent<Image>().sprite = m_highlight_sprite;
-                    new_highlight_border.GetComponent<Image>().color = new Color(255, 215, 0);
-                    new_highlight_border.gameObject.SetActive(true);
+                    Transform highlight = slot.m_NotableLayer.transform.parent.Find("CustomHighlight");
 
-                    GameObject new_highlight_inner = Instantiate(highlight.gameObject, highlight);
-                    new_highlight_inner.name = "CustomHighlightInner";
-                    new_highlight_inner.GetComponent<Image>().sprite = m_highlight_sprite;
-                    new_highlight_inner.GetComponent<Image>().color = Color.green;
-                    new_highlight_inner.GetComponent<RectTransform>().localScale = new Vector3(0.9f, 0.9f);
-                    new_highlight_inner.gameObject.SetActive(true);
+                    if (highlight == null)
+                    {
+                        highlight = Instantiate(slot.m_NotableLayer.gameObject, slot.m_NotableLayer.transform.parent).transform;
+                        highlight.name = "CustomHighlight";
+                        highlight.SetSiblingIndex(1);
+                        highlight.GetComponent<Image>().sprite = null;
+
+                        DestroyImmediate(highlight.transform.Find("NotableLayerFX").gameObject);
+
+                        GameObject new_highlight_border = Instantiate(highlight.gameObject, highlight);
+                        new_highlight_border.name = "CustomHighlightBorder";
+                        new_highlight_border.GetComponent<Image>().sprite = m_highlight_sprite;
+                        new_highlight_border.gameObject.SetActive(true);
+
+                        GameObject new_highlight_inner = Instantiate(highlight.gameObject, highlight);
+                        new_highlight_inner.name = "CustomHighlightInner";
+                        new_highlight_inner.GetComponent<Image>().sprite = m_highlight_sprite;
+                        new_highlight_inner.GetComponent<RectTransform>().localScale = new Vector3(0.9f, 0.9f);
+                        new_highlight_inner.gameObject.SetActive(true);
+                    }
+
+                    highlight.Find("CustomHighlightBorder").GetComponent<Image>().color = HighlightImportantLoot.Settings.HighlightBorderColour;
+                    highlight.Find("CustomHighlightInner").GetComponent<Image>().color = HighlightImportantLoot.Settings.HighlightBackgroundColour;
+
+                    bool enabled = slot.Item != null;
+
+                    if (enabled)
+                    {
+                        CopyScroll scroll = slot.Item.Blueprint.GetComponent<CopyScroll>();
+                        CopyRecipe recipe = slot.Item.Blueprint.GetComponent<CopyRecipe>();
+                        ItemPartShowInfoCallback cb = slot.Item.Get<ItemPartShowInfoCallback>();
+
+                        bool is_copyable_scroll = scroll != null && Game.Instance.Player.Party.Any(i => scroll.CanCopy(slot.Item, i));
+                        bool is_unlearned_recipe = recipe != null && recipe.CanCopy(slot.Item, UIUtility.GetCurrentCharacter());
+                        bool is_unread_document = cb != null && (!cb.m_Settings.Once || !cb.m_Triggered);
+
+                        enabled = (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedScrolls) && is_copyable_scroll) ||
+                            (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedRecipes) && is_unlearned_recipe) ||
+                            (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnreadDocuments) && is_unread_document);
+                    }
+
+                    highlight.gameObject.SetActive(enabled);
                 }
-
-                bool enabled = slot.Item != null;
-
-                if (enabled)
-                {
-                    CopyScroll scroll = slot.Item.Blueprint.GetComponent<CopyScroll>();
-                    CopyRecipe recipe = slot.Item.Blueprint.GetComponent<CopyRecipe>();
-                    ItemPartShowInfoCallback cb = slot.Item.Get<ItemPartShowInfoCallback>();
-
-                    bool is_copyable_scroll = scroll != null && Game.Instance.Player.Party.Any(i => scroll.CanCopy(slot.Item, i));
-                    bool is_unlearned_recipe = recipe != null && recipe.CanCopy(slot.Item, UIUtility.GetCurrentCharacter());
-                    bool is_unread_document = cb != null && (!cb.m_Settings.Once || !cb.m_Triggered);
-
-                    enabled = (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedScrolls) && is_copyable_scroll) ||
-                        (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedRecipes) && is_unlearned_recipe) ||
-                        (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnreadDocuments) && is_unread_document);
-                }
-
-                highlight.gameObject.SetActive(enabled);
             }
         }
     }
@@ -151,6 +160,9 @@ namespace HighlightImportantLoot
             HighlightLootableOptions.UnlearnedScrolls |
             HighlightLootableOptions.UnlearnedRecipes |
             HighlightLootableOptions.UnreadDocuments;
+
+        public Color HighlightBorderColour = new Color(255, 215, 0);
+        public Color HighlightBackgroundColour = new Color(0, 255, 0);
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -207,6 +219,77 @@ namespace HighlightImportantLoot
             }
 
             Settings.HighlightLootables = new_options;
+
+            GUILayout.Space(4);
+
+            GUILayout.BeginHorizontal();
+
+            GUILayout.BeginVertical();
+            GUILayout.Label("Highlight border colour ");
+            GUILayout.Label("Highlight background colour ");
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+            GUILayout.Label(" Red ");
+            GUILayout.Label(" Red ");
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+            string border_r_str = GUILayout.TextField(Settings.HighlightBorderColour.r.ToString());
+            string bg_r_str = GUILayout.TextField(Settings.HighlightBackgroundColour.r.ToString());
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+                GUILayout.Label(" Green ");
+                GUILayout.Label(" Green ");
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+            string border_g_str = GUILayout.TextField(Settings.HighlightBorderColour.g.ToString());
+            string bg_g_str = GUILayout.TextField(Settings.HighlightBackgroundColour.g.ToString());
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+            GUILayout.Label(" Blue ");
+            GUILayout.Label(" Blue ");
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+            string border_b_str = GUILayout.TextField(Settings.HighlightBorderColour.b.ToString());
+            string bg_b_str = GUILayout.TextField(Settings.HighlightBackgroundColour.b.ToString());
+            GUILayout.EndVertical();
+
+            GUILayout.FlexibleSpace();
+
+            GUILayout.EndHorizontal();
+
+            uint border_r = 0;
+            uint border_g = 0;
+            uint border_b = 0;
+
+            uint bg_r = 0;
+            uint bg_g = 0;
+            uint bg_b = 0;
+
+            uint.TryParse(border_r_str, out border_r);
+            uint.TryParse(border_g_str, out border_g);
+            uint.TryParse(border_b_str, out border_b);
+
+            uint.TryParse(bg_r_str, out bg_r);
+            uint.TryParse(bg_g_str, out bg_g);
+            uint.TryParse(bg_b_str, out bg_b);
+
+            Settings.HighlightBorderColour = new Color(
+                Math.Max(0, Math.Min(255, border_r)),
+                Math.Max(0, Math.Min(255, border_g)),
+                Math.Max(0, Math.Min(255, border_b)),
+                255);
+
+            Settings.HighlightBackgroundColour = new Color(
+                Math.Max(0, Math.Min(255, bg_r)),
+                Math.Max(0, Math.Min(255, bg_g)),
+                Math.Max(0, Math.Min(255, bg_b)),
+                255);
 
             GUILayout.Space(4);
         }
