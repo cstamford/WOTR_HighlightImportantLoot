@@ -14,6 +14,8 @@ using Kingmaker.Items.Parts;
 using Kingmaker.UI.MVVM._PCView.Slots;
 using Kingmaker.UI.MVVM._VM.Slots;
 using System.Linq;
+using Owlcat.Runtime.UniRx;
+using UnityEngine.EventSystems;
 
 namespace HighlightImportantLoot
 {
@@ -21,6 +23,7 @@ namespace HighlightImportantLoot
     {
         private Sprite m_highlight_sprite;
         private ItemSlotsGroupView[] m_items_view;
+        private bool m_deferred_update = true;
 
         private void Awake()
         {
@@ -51,68 +54,73 @@ namespace HighlightImportantLoot
 
                 foreach (ItemSlotsGroupView view in m_items_view)
                 {
-                    view.ViewModel.CollectionChangedCommand.Subscribe(delegate (bool _) { ApplyHighlights(); });
+                    view.ViewModel.CollectionChangedCommand.Subscribe(delegate (bool _) { m_deferred_update = true; });
                 }
 
-                ApplyHighlights();
-            }
-        }
-
-        private void ApplyHighlights()
-        {
-            foreach (ItemSlotsGroupView view in m_items_view)
-            {
-                foreach (IWidgetView widget in view.m_WidgetList.m_VisibleEntries)
+                foreach (ItemSlotPCView pc_slot in GetComponentsInChildren<ItemSlotPCView>())
                 {
-                    ItemSlotView<ItemSlotVM> slot = widget as ItemSlotView<ItemSlotVM>;
-
-                    if (slot == null) continue;
-
-                    Transform highlight = slot.m_NotableLayer.transform.parent.Find("CustomHighlight");
-
-                    if (highlight == null)
-                    {
-                        highlight = Instantiate(slot.m_NotableLayer.gameObject, slot.m_NotableLayer.transform.parent).transform;
-                        highlight.name = "CustomHighlight";
-                        highlight.SetSiblingIndex(1);
-                        highlight.GetComponent<Image>().sprite = null;
-
-                        DestroyImmediate(highlight.transform.Find("NotableLayerFX").gameObject);
-
-                        GameObject new_highlight_border = Instantiate(highlight.gameObject, highlight);
-                        new_highlight_border.name = "CustomHighlightBorder";
-                        new_highlight_border.GetComponent<Image>().sprite = m_highlight_sprite;
-                        new_highlight_border.gameObject.SetActive(true);
-
-                        GameObject new_highlight_inner = Instantiate(highlight.gameObject, highlight);
-                        new_highlight_inner.name = "CustomHighlightInner";
-                        new_highlight_inner.GetComponent<Image>().sprite = m_highlight_sprite;
-                        new_highlight_inner.GetComponent<RectTransform>().localScale = new Vector3(0.9f, 0.9f);
-                        new_highlight_inner.gameObject.SetActive(true);
-                    }
-
-                    highlight.Find("CustomHighlightBorder").GetComponent<Image>().color = HighlightImportantLoot.Settings.HighlightBorderColour;
-                    highlight.Find("CustomHighlightInner").GetComponent<Image>().color = HighlightImportantLoot.Settings.HighlightBackgroundColour;
-
-                    bool enabled = slot.Item != null;
-
-                    if (enabled)
-                    {
-                        CopyScroll scroll = slot.Item.Blueprint.GetComponent<CopyScroll>();
-                        CopyRecipe recipe = slot.Item.Blueprint.GetComponent<CopyRecipe>();
-                        ItemPartShowInfoCallback cb = slot.Item.Get<ItemPartShowInfoCallback>();
-
-                        bool is_copyable_scroll = scroll != null && Game.Instance.Player.Party.Any(i => scroll.CanCopy(slot.Item, i));
-                        bool is_unlearned_recipe = recipe != null && recipe.CanCopy(slot.Item, UIUtility.GetCurrentCharacter());
-                        bool is_unread_document = cb != null && (!cb.m_Settings.Once || !cb.m_Triggered);
-
-                        enabled = (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedScrolls) && is_copyable_scroll) ||
-                            (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedRecipes) && is_unlearned_recipe) ||
-                            (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnreadDocuments) && is_unread_document);
-                    }
-
-                    highlight.gameObject.SetActive(enabled);
+                    pc_slot.OnDropAsObservable().Subscribe(delegate (PointerEventData _) { m_deferred_update = true; });
                 }
+            }
+
+            if (m_deferred_update)
+            {
+                foreach (ItemSlotsGroupView view in m_items_view)
+                {
+                    foreach (IWidgetView widget in view.m_WidgetList.m_VisibleEntries)
+                    {
+                        ItemSlotView<ItemSlotVM> slot = widget as ItemSlotView<ItemSlotVM>;
+
+                        if (slot == null) continue;
+
+                        Transform highlight = slot.m_NotableLayer.transform.parent.Find("CustomHighlight");
+
+                        if (highlight == null)
+                        {
+                            highlight = Instantiate(slot.m_NotableLayer.gameObject, slot.m_NotableLayer.transform.parent).transform;
+                            highlight.name = "CustomHighlight";
+                            highlight.SetSiblingIndex(1);
+                            highlight.GetComponent<Image>().sprite = null;
+
+                            DestroyImmediate(highlight.transform.Find("NotableLayerFX").gameObject);
+
+                            GameObject new_highlight_border = Instantiate(highlight.gameObject, highlight);
+                            new_highlight_border.name = "CustomHighlightBorder";
+                            new_highlight_border.GetComponent<Image>().sprite = m_highlight_sprite;
+                            new_highlight_border.gameObject.SetActive(true);
+
+                            GameObject new_highlight_inner = Instantiate(highlight.gameObject, highlight);
+                            new_highlight_inner.name = "CustomHighlightInner";
+                            new_highlight_inner.GetComponent<Image>().sprite = m_highlight_sprite;
+                            new_highlight_inner.GetComponent<RectTransform>().localScale = new Vector3(0.9f, 0.9f);
+                            new_highlight_inner.gameObject.SetActive(true);
+                        }
+
+                        highlight.Find("CustomHighlightBorder").GetComponent<Image>().color = HighlightImportantLoot.Settings.HighlightBorderColour;
+                        highlight.Find("CustomHighlightInner").GetComponent<Image>().color = HighlightImportantLoot.Settings.HighlightBackgroundColour;
+
+                        bool enabled = slot.Item != null;
+
+                        if (enabled)
+                        {
+                            CopyScroll scroll = slot.Item.Blueprint.GetComponent<CopyScroll>();
+                            CopyRecipe recipe = slot.Item.Blueprint.GetComponent<CopyRecipe>();
+                            ItemPartShowInfoCallback cb = slot.Item.Get<ItemPartShowInfoCallback>();
+
+                            bool is_copyable_scroll = scroll != null && Game.Instance.Player.Party.Any(i => scroll.CanCopy(slot.Item, i));
+                            bool is_unlearned_recipe = recipe != null && recipe.CanCopy(slot.Item, null);
+                            bool is_unread_document = cb != null && (!cb.m_Settings.Once || !cb.m_Triggered);
+
+                            enabled = (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedScrolls) && is_copyable_scroll) ||
+                                (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnlearnedRecipes) && is_unlearned_recipe) ||
+                                (HighlightImportantLoot.Settings.HighlightLootables.HasFlag(HighlightLootableOptions.UnreadDocuments) && is_unread_document);
+                        }
+
+                        highlight.gameObject.SetActive(enabled);
+                    }
+                }
+
+                m_deferred_update = false;
             }
         }
     }
@@ -240,8 +248,8 @@ namespace HighlightImportantLoot
             GUILayout.EndVertical();
 
             GUILayout.BeginVertical();
-                GUILayout.Label(" Green ");
-                GUILayout.Label(" Green ");
+            GUILayout.Label(" Green ");
+            GUILayout.Label(" Green ");
             GUILayout.EndVertical();
 
             GUILayout.BeginVertical();
