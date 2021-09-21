@@ -162,7 +162,7 @@ namespace HighlightImportantLoot
             HighlightLootableOptions.UnreadDocuments;
 
         public Color HighlightBorderColour = new Color(255, 215, 0);
-        public Color HighlightBackgroundColour = new Color(0, 255, 0);
+        public Color HighlightBackgroundColour = new Color(255, 215, 0);
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
