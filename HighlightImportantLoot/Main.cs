@@ -263,21 +263,13 @@ namespace HighlightImportantLoot
 
             GUILayout.EndHorizontal();
 
-            uint border_r = 0;
-            uint border_g = 0;
-            uint border_b = 0;
+            uint.TryParse(border_r_str, out uint border_r);
+            uint.TryParse(border_g_str, out uint border_g);
+            uint.TryParse(border_b_str, out uint border_b);
 
-            uint bg_r = 0;
-            uint bg_g = 0;
-            uint bg_b = 0;
-
-            uint.TryParse(border_r_str, out border_r);
-            uint.TryParse(border_g_str, out border_g);
-            uint.TryParse(border_b_str, out border_b);
-
-            uint.TryParse(bg_r_str, out bg_r);
-            uint.TryParse(bg_g_str, out bg_g);
-            uint.TryParse(bg_b_str, out bg_b);
+            uint.TryParse(bg_r_str, out uint bg_r);
+            uint.TryParse(bg_g_str, out uint bg_g);
+            uint.TryParse(bg_b_str, out uint bg_b);
 
             Settings.HighlightBorderColour = new Color(
                 Math.Max(0, Math.Min(255, border_r)),
